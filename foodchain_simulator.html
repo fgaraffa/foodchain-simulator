@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Three-Species Food Chain Simulation</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:     #F4F7FA;
+    --panel:  #FFFFFF;
+    --border: #DDE4EE;
+    --text:   #1E2A3A;
+    --muted:  #7A90AA;
+    --R:      #1A9E5C;
+    --N:      #1478A8;
+    --P:      #C0392B;
+    --accent: #1A9E5C;
+    --canvas-bg: #FAFBFC;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 800;
+    letter-spacing: 0.02em; color: var(--text);
+  }
+  header h1 span { color: var(--R); }
+
+  .regime { display: flex; align-items: center; gap: 8px; }
+  .regime-label { color: var(--muted); font-size: 10px; letter-spacing: 0.08em; }
+  .regime-badge {
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 3px; letter-spacing: 0.06em;
+    transition: all 0.4s;
+  }
+  .regime-badge.equilibrium { background:#E8F8F0; color:var(--R); border:1px solid var(--R); }
+  .regime-badge.periodic    { background:#E8F2F8; color:var(--N); border:1px solid var(--N); }
+  .regime-badge.chaotic     { background:#FBE8E8; color:var(--P); border:1px solid var(--P); }
+
+  .header-controls { display: flex; gap: 8px; }
+  button {
+    font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
+    padding: 5px 14px; border-radius: 3px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    letter-spacing: 0.04em; transition: border-color 0.2s, color 0.2s;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Layout ── */
+  main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  aside {
+    width: 220px; flex-shrink: 0; background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 14px 16px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .param-group h2 {
+    font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700;
+    letter-spacing: 0.12em; color: var(--muted);
+    margin-bottom: 10px; text-transform: uppercase;
+  }
+  .param { margin-bottom: 10px; }
+  .param-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .param-name { color: var(--text); font-size: 11px; }
+  .param-name sub { font-size: 8px; }
+  .param-value { font-size: 11px; color: var(--accent); font-weight: 500; min-width: 38px; text-align: right; }
+
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 3px;
+    background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; border: 2px solid var(--panel);
+    transition: transform 0.1s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.3); }
+  input[type=range].K-slider::-webkit-slider-thumb  { background: var(--R); }
+  input[type=range].d2-slider::-webkit-slider-thumb { background: var(--P); }
+
+  .divider { border: none; border-top: 1px solid var(--border); }
+  .speed-row { display: flex; align-items: center; gap: 8px; }
+  .speed-row span { color: var(--muted); font-size: 9px; flex-shrink: 0; }
+  .ic-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .ic-label { font-size: 11px; font-weight: 500; min-width: 24px; }
+  input[type=number] {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 4px 7px; border-radius: 3px;
+    width: 80px; outline: none; -moz-appearance: textfield;
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  input[type=number]:focus { border-color: var(--accent); }
+  .ic-note { font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .legend-text { font-size: 10px; color: var(--text); }
+  .legend-sub { color: var(--muted); }
+
+  /* ── Plot grid ── */
+  .plots {
+    flex: 1; display: grid;
+    grid-template-rows: 1fr 1.3fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px; background: var(--border); overflow: hidden;
+  }
+  .plot-panel {
+    background: var(--canvas-bg); position: relative;
+    display: flex; flex-direction: column;
+  }
+  .plot-panel.ts-panel { grid-column: 1 / 3; }
+  .plot-label {
+    position: absolute; top: 8px; left: 12px; z-index: 1;
+    font-size: 9px; font-weight: 500; color: var(--muted);
+    letter-spacing: 0.08em; text-transform: uppercase; pointer-events: none;
+  }
+  .plot-hint {
+    position: absolute; bottom: 8px; right: 12px; z-index: 1;
+    font-size: 8px; color: var(--muted); pointer-events: none;
+  }
+  .time-readout {
+    position: absolute; top: 8px; right: 12px; z-index: 1;
+    font-size: 10px; color: var(--muted);
+  }
+  canvas { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Three-Species <span>Food Chain</span> Simulation</h1>
+  <div class="header-controls">
+    <button id="btn-transient">SKIP TRANSIENT</button>
+    <button id="btn-reset">RESET</button>
+    <button id="btn-pause" class="primary">PAUSE</button>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="param-group">
+      <h2>Bifurcation Parameters</h2>
+      <div class="param">
+        <div class="param-header">
+          <span class="param-name">K &nbsp;<span style="color:var(--muted);font-size:9px">carrying capacity</span></span>
+          <span class="param-value" id="val-K">1.000</span>
+        </div>
+        <input class="K-slider" type="range" id="K" min="0.3" max="2.5" step="0.01" value="1.0">
+      </div>
+      <div class="param">
+        <div class="param-header">
+          <span class="param-name">d<sub>2</sub> &nbsp;<span style="color:var(--muted);font-size:9px">predator mortality</span></span>
+          <span class="param-value" id="val-d2">0.010</span>
+        </div>
+        <input class="d2-slider" type="range" id="d2" min="0.002" max="0.055" step="0.001" value="0.01">
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="param-group">
+      <h2>Other Parameters</h2>
+      <div class="param">
+        <div class="param-header">
+          <span class="param-name">r &nbsp;<span style="color:var(--muted);font-size:9px">resource growth</span></span>
+          <span class="param-value" id="val-r">1.000</span>
+        </div>
+        <input type="range" id="r" min="0.5" max="2.0" step="0.01" value="1.0">
+      </div>
+      <div class="param">
+        <div class="param-header">
+          <span class="param-name">c<sub>1</sub> &nbsp;<span style="color:var(--muted);font-size:9px">prey max ingestion</span></span>
+          <span class="param-value" id="val-c1">1.667</span>
+        </div>
+        <input type="range" id="c1" min="0.5" max="3.5" step="0.01" value="1.667">
+      </div>
+      <div class="param">
+        <div class="param-header">
+          <span class="param-name">c<sub>2</sub> &nbsp;<span style="color:var(--muted);font-size:9px">predator max ingestion</span></span>
+          <span class="param-value" id="val-c2">0.050</span>
+        </div>
+        <input type="range" id="c2" min="0.01" max="0.15" step="0.001" value="0.05">
+      </div>
+      <div class="param">
+        <div class="param-header">
+          <span class="param-name">d<sub>1</sub> &nbsp;<span style="color:var(--muted);font-size:9px">prey mortality</span></span>
+          <span class="param-value" id="val-d1">0.400</span>
+        </div>
+        <input type="range" id="d1" min="0.1" max="0.8" step="0.01" value="0.4">
+      </div>
+      <div class="param">
+        <div class="param-header">
+          <span class="param-name">e<sub>1</sub> &nbsp;<span style="color:var(--muted);font-size:9px">prey conversion efficiency</span></span>
+          <span class="param-value" id="val-e1">1.000</span>
+        </div>
+        <input type="range" id="e1" min="0.0" max="1.0" step="0.01" value="1.0">
+      </div>
+      <div class="param">
+        <div class="param-header">
+          <span class="param-name">e<sub>2</sub> &nbsp;<span style="color:var(--muted);font-size:9px">predator conversion efficiency</span></span>
+          <span class="param-value" id="val-e2">1.000</span>
+        </div>
+        <input type="range" id="e2" min="0.0" max="1.0" step="0.01" value="1.0">
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="param-group">
+      <h2>Initial Conditions</h2>
+      <div class="ic-row">
+        <span class="ic-label" style="color:var(--R)">R<sub>0</sub></span>
+        <input type="number" id="ic-R" value="0.5" min="0" max="5" step="0.01">
+      </div>
+      <div class="ic-row">
+        <span class="ic-label" style="color:var(--N)">N<sub>0</sub></span>
+        <input type="number" id="ic-N" value="0.1" min="0" max="5" step="0.01">
+      </div>
+      <div class="ic-row">
+        <span class="ic-label" style="color:var(--P)">P<sub>0</sub></span>
+        <input type="number" id="ic-P" value="9.0" min="0" max="20" step="0.1">
+      </div>
+      <p class="ic-note"></p>
+    <hr class="divider">
+    <div class="param-group">
+      <h2>Simulation Speed</h2>
+      <div class="speed-row">
+        <span>SLOW</span>
+        <input type="range" id="speed" min="1" max="8" step="1" value="3" style="flex:1">
+        <span>FAST</span>
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="param-group">
+      <h2>Legend</h2>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--R)"></div>
+          <span class="legend-text">R <span class="legend-sub">— resource (vegetation)</span></span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--N)"></div>
+          <span class="legend-text">N <span class="legend-sub">— prey (herbivore)</span></span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--P)"></div>
+          <span class="legend-text">P <span class="legend-sub">— predator (carnivore)</span></span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="plots">
+    <div class="plot-panel ts-panel">
+      <span class="plot-label">TIME SERIES</span>
+      <span class="time-readout" id="tread">t = 0.0</span>
+      <canvas id="cv-ts"></canvas>
+    </div>
+    <div class="plot-panel">
+      <span class="plot-label">ECOSYSTEM ANIMATION</span>
+      <canvas id="cv-eco"></canvas>
+    </div>
+    <div class="plot-panel">
+      <span class="plot-label">3D PHASE PORTRAIT  (R, N, P)</span>
+      <span class="plot-hint">drag to rotate</span>
+      <canvas id="cv-3d"></canvas>
+    </div>
+  </div>
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  ODE SYSTEM — Hastings & Powell (1991)
+// ═══════════════════════════════════════════════════════════════════
+let params = { r:1, K:1, c1:5/3, k1:1/3, e1:1, c2:.05, k2:.5, e2:1, d1:.4, d2:.01 };
+let state   = [0.5, 0.1, 9.0];
+let simTime = 0;
+let paused  = false;
+let stepsPerFrame = 15;
+const DT = 0.02;
+
+function deriv([R, N, P], p) {
+  const f1 = p.c1*R/(p.k1+R), f2 = p.c2*N/(p.k2+N);
+  return [
+    p.r*R*(1-R/p.K) - f1*N,
+    p.e1*f1*N - f2*P - p.d1*N,
+    p.e2*f2*P - p.d2*P
+  ];
+}
+function rk4(s, dt, p) {
+  const k1=deriv(s,p),
+        k2=deriv(s.map((v,i)=>v+k1[i]*dt/2),p),
+        k3=deriv(s.map((v,i)=>v+k2[i]*dt/2),p),
+        k4=deriv(s.map((v,i)=>v+k3[i]*dt),p);
+  return s.map((v,i)=>Math.max(0, v+dt/6*(k1[i]+2*k2[i]+2*k3[i]+k4[i])));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RING BUFFERS
+// ═══════════════════════════════════════════════════════════════════
+const BUFSZ=4000, WIN=150, TRAILSZ=80000;
+
+let buf = {
+  R:new Float32Array(BUFSZ), N:new Float32Array(BUFSZ),
+  P:new Float32Array(BUFSZ), t:new Float32Array(BUFSZ), h:0, n:0
+};
+function pushBuf(R,N,P,t){
+  buf.R[buf.h]=R; buf.N[buf.h]=N; buf.P[buf.h]=P; buf.t[buf.h]=t;
+  buf.h=(buf.h+1)%BUFSZ; if(buf.n<BUFSZ)buf.n++;
+}
+function bg(k){ return(buf.h-buf.n+k+BUFSZ*4)%BUFSZ; }
+
+let trail = {
+  R:new Float32Array(TRAILSZ), N:new Float32Array(TRAILSZ),
+  P:new Float32Array(TRAILSZ), h:0, n:0
+};
+function pushTrail(R,N,P){
+  trail.R[trail.h]=R; trail.N[trail.h]=N; trail.P[trail.h]=P;
+  trail.h=(trail.h+1)%TRAILSZ; if(trail.n<TRAILSZ)trail.n++;
+}
+function tg(k){ return(trail.h-trail.n+k+TRAILSZ*4)%TRAILSZ; }
+
+// ═══════════════════════════════════════════════════════════════════
+//  PARTICLE / ECOSYSTEM ANIMATION
+//  Particles are visual only — the ODE drives population counts.
+//  R = plants (green, static), N = herbivores (blue, roam & graze),
+//  P = predators (red, hunt). Counts scale with current state values.
+// ═══════════════════════════════════════════════════════════════════
+let particles = [];
+let eatFX     = [];  // expanding ring effects when a species is eaten
+
+function targetCounts() {
+  const [R, N, P] = state;
+  return {
+    R: Math.min(45, Math.max(0, Math.round(R / params.K * 40))),
+    N: Math.min(28, Math.max(0, Math.round(N / 0.45 * 24))),
+    P: Math.min(18, Math.max(0, Math.round(P / 12  * 15)))
+  };
+}
+
+function spawnParticle(type, W, H) {
+  return {
+    type, x: 15+Math.random()*(W-30), y: 15+Math.random()*(H-30),
+    vx: 0, vy: 0, alpha: 0, dying: false, cd: 0,
+    wobble: Math.random()*Math.PI*2
+  };
+}
+
+function dist2(a, b){ return (a.x-b.x)**2+(a.y-b.y)**2; }
+function nearest(p, others) {
+  let best=null, bd=Infinity;
+  for(const o of others){ if(o===p||o.dying) continue; const d=dist2(p,o); if(d<bd){bd=d;best=o;}}
+  return [best, Math.sqrt(bd)];
+}
+
+function updateParticles(W, H) {
+  const tgt = targetCounts();
+
+  // Adjust particle counts (add up to 6 per frame for fast appearance after reset)
+  ['R','N','P'].forEach(sp => {
+    const live = particles.filter(p=>p.type===sp&&!p.dying);
+    const diff = tgt[sp] - live.length;
+    if (diff > 0) {
+      const add = Math.min(diff, 6);
+      for(let i=0; i<add; i++) particles.push(spawnParticle(sp, W, H));
+    } else if (diff < 0) {
+      let killed = 0;
+      for(const p of live){ if(killed++ >= -diff) break; p.dying = true; }
+    }
+  });
+
+  const rLive = particles.filter(p=>p.type==='R'&&!p.dying);
+  const nLive = particles.filter(p=>p.type==='N'&&!p.dying);
+  const pLive = particles.filter(p=>p.type==='P'&&!p.dying);
+  const EAT_D = 13;
+
+  particles.forEach(p => {
+    // Fade in / out
+    p.alpha = Math.max(0, Math.min(1, p.alpha + (p.dying ? -0.05 : 0.12)));
+    p.wobble += 0.05;
+    if (p.cd > 0) p.cd--;
+
+    if (p.type === 'N') {
+      // Seek nearest plant
+      const [nr, nd] = nearest(p, rLive);
+      if (nr) {
+        if (nd < EAT_D && p.cd <= 0) {
+          nr.dying = true; p.cd = 65;
+          eatFX.push({x:nr.x, y:nr.y, r:0, a:1, col:'#1A9E5C'});
+        } else {
+          p.vx += (nr.x-p.x)/nd * 0.14;
+          p.vy += (nr.y-p.y)/nd * 0.14;
+        }
+      }
+      // Flee from predators
+      for(const pred of pLive) {
+        const dx=p.x-pred.x, dy=p.y-pred.y, d=Math.sqrt(dx*dx+dy*dy);
+        if (d < 55 && d > 0) { p.vx+=dx/d*0.40; p.vy+=dy/d*0.40; }
+      }
+      p.vx += (Math.random()-.5)*0.14; p.vy += (Math.random()-.5)*0.14;
+      p.vx *= 0.87; p.vy *= 0.87;
+      p.x = Math.max(12, Math.min(W-12, p.x+p.vx));
+      p.y = Math.max(12, Math.min(H-12, p.y+p.vy));
+
+    } else if (p.type === 'P') {
+      // Seek nearest herbivore
+      const [nn, nd] = nearest(p, nLive);
+      if (nn) {
+        if (nd < EAT_D && p.cd <= 0) {
+          nn.dying = true; p.cd = 100;
+          eatFX.push({x:nn.x, y:nn.y, r:0, a:1, col:'#1478A8'});
+        } else {
+          p.vx += (nn.x-p.x)/nd * 0.09;
+          p.vy += (nn.y-p.y)/nd * 0.09;
+        }
+      }
+      p.vx += (Math.random()-.5)*0.10; p.vy += (Math.random()-.5)*0.10;
+      p.vx *= 0.90; p.vy *= 0.90;
+      p.x = Math.max(12, Math.min(W-12, p.x+p.vx));
+      p.y = Math.max(12, Math.min(H-12, p.y+p.vy));
+    }
+    // R particles: static with gentle wobble (no movement)
+  });
+
+  // Update eat-effect rings
+  eatFX.forEach(e => { e.r += 1.6; e.a -= 0.06; });
+  eatFX = eatFX.filter(e => e.a > 0);
+
+  // Remove fully faded particles
+  particles = particles.filter(p => p.alpha > 0 || !p.dying);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CANVAS SETUP
+// ═══════════════════════════════════════════════════════════════════
+const cvTs  = document.getElementById('cv-ts');
+const cvEco = document.getElementById('cv-eco');
+const cv3d  = document.getElementById('cv-3d');
+const DPR   = window.devicePixelRatio || 1;
+
+function resize() {
+  [cvTs, cvEco, cv3d].forEach(c => {
+    c.width  = c.offsetWidth  * DPR;
+    c.height = c.offsetHeight * DPR;
+  });
+  particles = [];
+}
+window.addEventListener('resize', resize);
+
+// ═══════════════════════════════════════════════════════════════════
+//  DRAW: TIME SERIES
+// ═══════════════════════════════════════════════════════════════════
+const SCOLS = { R:'#1A9E5C', N:'#1478A8', P:'#C0392B' };
+
+function drawTS() {
+  const ctx=cvTs.getContext('2d'), W=cvTs.width, H=cvTs.height;
+  const pl=44*DPR, pr=22*DPR, pt=22*DPR, pb=26*DPR;
+  const pw=W-pl-pr, ph=H-pt-pb;
+
+  ctx.fillStyle='#FAFBFC'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#EEF1F6'; ctx.lineWidth=1;
+  for(let i=1;i<8;i++){ const x=pl+i/8*pw; ctx.beginPath();ctx.moveTo(x,pt);ctx.lineTo(x,pt+ph);ctx.stroke(); }
+  for(let i=1;i<4;i++){ const y=pt+i/4*ph; ctx.beginPath();ctx.moveTo(pl,y);ctx.lineTo(pl+pw,y);ctx.stroke(); }
+
+  if(buf.n<2) return;
+  const ni=bg(buf.n-1); const tMax=buf.t[ni];
+  const oldest=buf.t[bg(0)];
+  const tMin=Math.max(oldest, tMax-WIN);
+  const tSpan=Math.max(tMax-tMin, 1);
+  let yMax=0.01;
+  for(let k=0;k<buf.n;k++){ const i=bg(k); if(buf.t[i]<tMin)continue; yMax=Math.max(yMax,buf.R[i],buf.N[i],buf.P[i]); }
+  yMax*=1.12;
+  const tx=t=>pl+(t-tMin)/tSpan*pw, ty=v=>pt+ph-v/yMax*ph;
+
+  ['R','N','P'].forEach(sp => {
+    ctx.beginPath(); ctx.strokeStyle=SCOLS[sp]; ctx.lineWidth=2*DPR; ctx.lineJoin='round';
+    let started=false;
+    for(let k=0;k<buf.n;k++){
+      const i=bg(k); if(buf.t[i]<tMin)continue;
+      const x=tx(buf.t[i]), y=ty(buf[sp][i]);
+      if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    const lv=buf[sp][bg(buf.n-1)];
+    ctx.fillStyle=SCOLS[sp]; ctx.font=`bold ${9*DPR}px DM Mono,monospace`;
+    ctx.textAlign='left'; ctx.fillText(sp, W-pr+3*DPR, ty(lv)+4*DPR);
+  });
+
+  ctx.fillStyle='#AAB8CC'; ctx.font=`${9*DPR}px DM Mono,monospace`; ctx.textAlign='right';
+  for(let i=0;i<=4;i++){ const v=yMax*i/4; ctx.fillText(v.toFixed(1),pl-4*DPR,ty(v)+3*DPR); }
+  ctx.textAlign='center';
+  for(let i=0;i<=4;i++){ const t_=tMin+i/4*tSpan; ctx.fillText(Math.round(t_),tx(t_),H-6*DPR); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DRAW: ECOSYSTEM ANIMATION
+// ═══════════════════════════════════════════════════════════════════
+function drawEco() {
+  const ctx=cvEco.getContext('2d'), W=cvEco.width, H=cvEco.height;
+
+  // Background
+  const grd=ctx.createLinearGradient(0,0,0,H);
+  grd.addColorStop(0,'#EBF7F0'); grd.addColorStop(1,'#DDF0E7');
+  ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
+
+  // Eat effects (expanding rings)
+  eatFX.forEach(e => {
+    ctx.save(); ctx.globalAlpha=e.a;
+    ctx.strokeStyle=e.col; ctx.lineWidth=2.5*DPR;
+    ctx.beginPath(); ctx.arc(e.x*DPR, e.y*DPR, e.r*DPR, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  });
+
+  // Draw particles — simple equal-size dots
+  const DOT_R = 7 * DPR;
+  const DOT_COLS = { R:'#27AE60', N:'#2980B9', P:'#E74C3C' };
+  const DOT_STROKE = { R:'#1A6B3A', N:'#1A5276', P:'#922B21' };
+
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle   = DOT_COLS[p.type];
+    ctx.strokeStyle = DOT_STROKE[p.type];
+    ctx.lineWidth   = DPR;
+    ctx.beginPath();
+    ctx.arc(p.x*DPR, p.y*DPR, DOT_R, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  // Population value overlay (bottom)
+  const panelH=H/DPR;
+  const labels=[
+    {sp:'R', col:'#1A6B3A', bg:'rgba(232,248,240,0.92)', val:state[0].toFixed(3), x:8},
+    {sp:'N', col:'#0E4F72', bg:'rgba(232,242,248,0.92)', val:state[1].toFixed(3), x:88},
+    {sp:'P', col:'#7B1A12', bg:'rgba(251,232,232,0.92)', val:state[2].toFixed(2),  x:168}
+  ];
+  labels.forEach(l => {
+    ctx.fillStyle=l.bg;
+    ctx.beginPath();
+    ctx.roundRect(l.x*DPR, (panelH-22)*DPR, 74*DPR, 17*DPR, 3*DPR);
+    ctx.fill();
+    ctx.fillStyle=l.col; ctx.font=`bold ${10*DPR}px DM Mono,monospace`; ctx.textAlign='left';
+    ctx.fillText(`${l.sp} = ${l.val}`, (l.x+5)*DPR, (panelH-10)*DPR);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DRAW: 3D PHASE PORTRAIT  (custom orthographic projection)
+// ═══════════════════════════════════════════════════════════════════
+let rotX=-0.42, rotY=0.62;
+let dragging=false, lastMX=0, lastMY=0;
+let Rmax=1.1, Nmax=0.6, Pmax=13;
+
+function project3D(r, n, p, cx, cy, sc) {
+  const x=(r/Rmax)-0.5, y=(n/Nmax)-0.5, z=(p/Pmax)-0.5;
+  // Rotate Y
+  const x1=x*Math.cos(rotY)+z*Math.sin(rotY);
+  const z1=-x*Math.sin(rotY)+z*Math.cos(rotY);
+  // Rotate X
+  const y2=y*Math.cos(rotX)-z1*Math.sin(rotX);
+  return { sx: cx+x1*sc, sy: cy-y2*sc };
+}
+
+function draw3D() {
+  const ctx=cv3d.getContext('2d'), W=cv3d.width, H=cv3d.height;
+  ctx.fillStyle='#FAFBFC'; ctx.fillRect(0,0,W,H);
+
+  // Update ranges dynamically (slowly expand)
+  for(let k=0;k<trail.n;k++){
+    const i=tg(k);
+    Rmax=Math.max(Rmax, trail.R[i]*1.08);
+    Nmax=Math.max(Nmax, trail.N[i]*1.08);
+    Pmax=Math.max(Pmax, trail.P[i]*1.08);
+  }
+
+  const cx=W/2, cy=H/2, sc=Math.min(W,H)*0.55;
+
+  // Axis corners from (0,0,0)
+  const O=project3D(0,0,0,cx,cy,sc);
+  const aR=project3D(Rmax,0,0,cx,cy,sc);
+  const aN=project3D(0,Nmax,0,cx,cy,sc);
+  const aP=project3D(0,0,Pmax,cx,cy,sc);
+
+  const ACOLS=['#1A9E5C','#1478A8','#C0392B'];
+  const ALABS=['R','N','P'];
+  [[aR,0],[aN,1],[aP,2]].forEach(([ax,i]) => {
+    ctx.strokeStyle=ACOLS[i]+'70'; ctx.lineWidth=1.5*DPR;
+    ctx.setLineDash([4*DPR,4*DPR]);
+    ctx.beginPath(); ctx.moveTo(O.sx,O.sy); ctx.lineTo(ax.sx,ax.sy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=ACOLS[i]; ctx.font=`bold ${11*DPR}px Syne,sans-serif`;
+    ctx.textAlign='center'; ctx.fillText(ALABS[i], ax.sx, ax.sy-8*DPR);
+  });
+
+  // Trail — fully visible, no fading; clears only on reset
+  const n=trail.n;
+  for(let k=1; k<n; k++) {
+    const i0=tg(k-1), i1=tg(k);
+    const p0=project3D(trail.R[i0],trail.N[i0],trail.P[i0],cx,cy,sc);
+    const p1=project3D(trail.R[i1],trail.N[i1],trail.P[i1],cx,cy,sc);
+    ctx.strokeStyle='rgba(40,90,180,0.55)';
+    ctx.lineWidth=1.2*DPR;
+    ctx.beginPath(); ctx.moveTo(p0.sx,p0.sy); ctx.lineTo(p1.sx,p1.sy); ctx.stroke();
+  }
+
+  // Current position dot
+  if(n>0){
+    const ci=tg(n-1);
+    const cp=project3D(trail.R[ci],trail.N[ci],trail.P[ci],cx,cy,sc);
+    ctx.fillStyle='#1E2A3A';
+    ctx.beginPath(); ctx.arc(cp.sx,cp.sy,5*DPR,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#FFFFFF';
+    ctx.beginPath(); ctx.arc(cp.sx,cp.sy,3*DPR,0,Math.PI*2); ctx.fill();
+  }
+}
+
+// Mouse drag rotation
+cv3d.addEventListener('mousedown', e=>{ dragging=true; lastMX=e.clientX; lastMY=e.clientY; });
+window.addEventListener('mousemove', e=>{
+  if(!dragging) return;
+  rotY+=(e.clientX-lastMX)*0.008; rotX+=(e.clientY-lastMY)*0.008;
+  lastMX=e.clientX; lastMY=e.clientY;
+});
+window.addEventListener('mouseup', ()=>dragging=false);
+cv3d.addEventListener('touchstart', e=>{ dragging=true; lastMX=e.touches[0].clientX; lastMY=e.touches[0].clientY; },{passive:true});
+cv3d.addEventListener('touchmove', e=>{
+  if(!dragging) return;
+  rotY+=(e.touches[0].clientX-lastMX)*0.008; rotX+=(e.touches[0].clientY-lastMY)*0.008;
+  lastMX=e.touches[0].clientX; lastMY=e.touches[0].clientY;
+},{passive:true});
+cv3d.addEventListener('touchend', ()=>dragging=false);
+
+// ═══════════════════════════════════════════════════════════════════
+//  REGIME DETECTION
+// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  MAIN LOOP
+// ═══════════════════════════════════════════════════════════════════
+function simStep() {
+  for(let s=0; s<stepsPerFrame; s++){
+    state=rk4(state,DT,params); simTime+=DT;
+    pushBuf(state[0],state[1],state[2],simTime);
+    pushTrail(state[0],state[1],state[2]);
+  }
+}
+
+function loop(){
+  if(!paused){ simStep(); }
+  const W=cvEco.offsetWidth, H=cvEco.offsetHeight;
+  if(W>0&&H>0) updateParticles(W, H);
+  document.getElementById('tread').textContent=`t = ${simTime.toFixed(1)}`;
+  drawTS(); drawEco(); draw3D();
+  requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════════════════════
+function getIC() {
+  const R0 = Math.max(0, parseFloat(document.getElementById('ic-R').value) || 0.5);
+  const N0 = Math.max(0, parseFloat(document.getElementById('ic-N').value) || 0.1);
+  const P0 = Math.max(0, parseFloat(document.getElementById('ic-P').value) || 9.0);
+  return [R0, N0, P0];
+}
+
+function hardReset(){
+  state=getIC(); simTime=0;
+  buf.h=0; buf.n=0; trail.h=0; trail.n=0;
+  Rmax=1.1; Nmax=0.6; Pmax=13;
+  particles=[]; eatFX=[];
+}
+
+function skipTransient(){
+  const was=paused; paused=true;
+  const btn=document.getElementById('btn-transient');
+  btn.textContent='COMPUTING…'; btn.disabled=true;
+
+  setTimeout(()=>{
+    // ── Convergence-based transient skip ─────────────────────────────
+    // Run in chunks of CHUNK time units. After each chunk, sample the
+    // last WINDOW_PTS values of N and compute their range. If the range
+    // stops changing between consecutive chunks (delta < TOL), the system
+    // has settled onto its attractor (equilibrium, limit cycle, or chaos).
+    // Hard cap at MAX_T time units to prevent infinite loops.
+    const CHUNK      = 200;    // time units per chunk
+    const MAX_T      = 8000;   // hard cap
+    const WINDOW_PTS = 600;    // RK4 steps sampled at end of each chunk (~12 time units)
+    const TOL        = 1e-4;   // convergence tolerance on range-of-N
+
+    let s = getIC();
+    let elapsed = 0;
+    let prevRange = -1;
+
+    while (elapsed < MAX_T) {
+      // Run one chunk
+      const steps = Math.round(CHUNK / DT);
+      for (let i = 0; i < steps; i++) s = rk4(s, DT, params);
+      elapsed += CHUNK;
+
+      // Sample last WINDOW_PTS steps to measure range of N
+      let nMin = Infinity, nMax = -Infinity;
+      let sp = [...s];
+      // Run WINDOW_PTS more steps, recording N each step
+      for (let i = 0; i < WINDOW_PTS; i++) {
+        sp = rk4(sp, DT, params);
+        if (sp[1] < nMin) nMin = sp[1];
+        if (sp[1] > nMax) nMax = sp[1];
+      }
+      const range = nMax - nMin;
+
+      // Advance s by those WINDOW_PTS steps too
+      s = sp;
+      elapsed += WINDOW_PTS * DT;
+
+      // Check convergence: has the range of N stabilised between chunks?
+      if (prevRange >= 0 && Math.abs(range - prevRange) < TOL) break;
+      prevRange = range;
+    }
+
+    state = s;
+    simTime = elapsed;
+    buf.h=0; buf.n=0; trail.h=0; trail.n=0;
+    particles=[]; eatFX=[];
+    Rmax=1.1; Nmax=0.6; Pmax=13;
+    paused=was;
+    btn.textContent='SKIP TRANSIENT'; btn.disabled=false;
+  }, 10);
+}
+
+document.getElementById('btn-pause').addEventListener('click',()=>{
+  paused=!paused;
+  document.getElementById('btn-pause').textContent=paused?'RESUME':'PAUSE';
+});
+document.getElementById('btn-reset').addEventListener('click', hardReset);
+document.getElementById('btn-transient').addEventListener('click', skipTransient);
+
+function bindSlider(id, key, dec){
+  const el=document.getElementById(id), vl=document.getElementById('val-'+id);
+  el.addEventListener('input',()=>{
+    const v=parseFloat(el.value); params[key]=v; vl.textContent=v.toFixed(dec);
+    trail.h=0; trail.n=0; particles=[]; eatFX=[];
+    Rmax=1.1; Nmax=0.6; Pmax=13;
+  });
+}
+bindSlider('K','K',3); bindSlider('d2','d2',3);
+bindSlider('r','r',3); bindSlider('c1','c1',3);
+bindSlider('c2','c2',3); bindSlider('d1','d1',3);
+bindSlider('e1','e1',3); bindSlider('e2','e2',3);
+
+document.getElementById('speed').addEventListener('input',e=>{
+  stepsPerFrame=parseInt(e.target.value)*5;
+});
+
+// ── Start ──────────────────────────────────────────────────────────
+setTimeout(()=>{ resize(); loop(); }, 150);
+</script>
+</body>
+</html>
